@@ -1,0 +1,17 @@
+.cloud_codebase_scan:  
+  stage: sast
+  image:
+    name: cto-docker-public.pkg.sbercloud.tech/cloud-scan:latest
+    pull_policy: always
+  allow_failure: true
+  tags:
+    - ci-runners-02
+  script:
+    - cloud-scan scan --platform-name=sberdisk-b2c --log-level=debug
+  artifacts:
+    expire_in: 3 day
+    paths:
+      - .report/
+    when: always
+  
+  

@@ -1,0 +1,17 @@
+.api_test:
+  stage: api_test
+  variables:
+    CI_REGISTRY: sdb2c-docker.pkg.sbercloud.tech
+    API_TEST_IMAGE: "products/sberdisk/sberdisk-b2c/qa-team/sdisk-ui-tests"
+    IMAGE_VERSION: v1
+  allow_failure: false
+  tags:
+    - ${RUNNER_TAG}
+  image: $CI_REGISTRY/$API_TEST_IMAGE:$IMAGE_VERSION
+  script:
+    - sed -i 's,ssh://git,https://gitlab-ci-token:${GL_TOKEN},' requirements.txt
+    - python3 -m venv venv --clear
+    - source venv/bin/activate
+    - python3 -m pip install --upgrade pip
+    - pip3 install -r requirements.txt
+    - python3 -m pytest api_tests/tests

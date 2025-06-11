@@ -1,0 +1,124 @@
+
+stages:
+  - release
+  - build
+  - deploy
+
+variables:
+  GIT_STRATEGY: clone
+
+release:
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/semantic-release:17.4.4
+  stage: release
+  tags:
+    - sdc-dev-docker-runner
+  before_script:
+    - |-
+      tee -a release.config.js > /dev/null <<END
+      const branch = process.env.CI_COMMIT_BRANCH
+      const config = {
+        branches: ['master'],
+        tagFormat: '\${version}',
+        plugins: [["@semantic-release/commit-analyzer", {"preset": "conventionalcommits"}], '@semantic-release/release-notes-generator', "@semantic-release/gitlab"]
+      }
+      if (config.branches.some(it => it === branch || (it.name === branch && !it.prerelease))) {
+        config.plugins.push('@semantic-release/changelog', [
+          '@semantic-release/git',
+          {
+            assets: ['CHANGELOG.md'],
+            message: 'chore(release): \${nextRelease.version}'
+          }
+        ])
+      }
+      module.exports = config
+      END
+  script:
+    - semantic-release
+  rules:
+    - if: $CI_COMMIT_TITLE =~ /^chore/
+      when: never
+    - if: '$CI_COMMIT_REF_NAME == "master"'
+
+
+Build:deb:
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/tarantool-tools:20.04-2.8-1
+  when: always
+  stage: build
+  only:
+    - tags
+  script:
+    - cartridge pack --name ${CI_PROJECT_NAME}-app --version ${CI_COMMIT_TAG} deb .
+    - package=$(ls -1 ${CI_PROJECT_NAME}-app-${CI_COMMIT_TAG}*.deb)
+    - curl -H "X-JFrog-Art-Api:${ARTIFACTORY_API_KEY}" -XPUT "https://pkg.sbercloud.tech/artifactory/sdb2c-deb/pool/$package;deb.distribution=focal;deb.component=main;deb.architecture=amd64" -T $package
+
+DEV_Deploy:
+  stage: deploy
+  when: always
+  only:
+    - tags
+  variables:
+    ENV: dev
+    PARENT_USER_EMAIL: $GITLAB_USER_EMAIL
+    PARENT_USER: $GITLAB_USER_LOGIN
+    PARENT_CI_COMMIT_TAG: $CI_COMMIT_TAG
+    PARENT_CI_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+    SERVICE_NAME: $CI_PROJECT_NAME
+    HEAD_SERVICE_NAME: tarantool
+    RUNNER_TAG: sdc-dev-docker-runner
+  trigger:
+    project: products/sberdisk/sberdisk-b2c/deploy/sd-ansible
+    branch: master
+
+New_DEV_Deploy:
+  stage: deploy
+  when: always
+  only:
+    - tags
+  variables:
+    ENV: dev-new
+    PARENT_USER_EMAIL: $GITLAB_USER_EMAIL
+    PARENT_USER: $GITLAB_USER_LOGIN
+    PARENT_CI_COMMIT_TAG: $CI_COMMIT_TAG
+    PARENT_CI_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+    SERVICE_NAME: $CI_PROJECT_NAME
+    HEAD_SERVICE_NAME: tarantool
+    RUNNER_TAG: newDev-SDB2C-runner
+  trigger:
+    project: products/sberdisk/sberdisk-b2c/deploy/sd-ansible
+    branch: master
+
+STAGE_Deploy:
+  stage: deploy
+  when: always
+  only:
+    - tags
+  variables:
+    ENV: stage
+    PARENT_USER_EMAIL: $GITLAB_USER_EMAIL
+    PARENT_USER: $GITLAB_USER_LOGIN
+    PARENT_CI_COMMIT_TAG: $CI_COMMIT_TAG
+    PARENT_CI_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+    SERVICE_NAME: $CI_PROJECT_NAME
+    HEAD_SERVICE_NAME: tarantool
+    RUNNER_TAG: sdc-stage-docker-runner
+  trigger:
+    project: products/sberdisk/sberdisk-b2c/deploy/sd-ansible
+    branch: master
+
+New_STAGE_Deploy:
+  stage: deploy
+  when: always
+  only:
+    - tags
+  variables:
+    ENV: stage-new
+    PARENT_USER_EMAIL: $GITLAB_USER_EMAIL
+    PARENT_USER: $GITLAB_USER_LOGIN
+    PARENT_CI_COMMIT_TAG: $CI_COMMIT_TAG
+    PARENT_CI_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+    SERVICE_NAME: $CI_PROJECT_NAME
+    HEAD_SERVICE_NAME: tarantool
+    RUNNER_TAG: newStage-SDB2C-runner
+  trigger:
+    project: products/sberdisk/sberdisk-b2c/deploy/sd-ansible
+    branch: master

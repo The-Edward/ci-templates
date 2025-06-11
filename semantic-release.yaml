@@ -1,0 +1,61 @@
+.release:
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/semantic-release:17.4.4
+  stage: release
+  tags:
+    - sdc-dev-docker-runner
+  before_script:
+    - |-
+      tee -a release.config.js > /dev/null <<END
+      const branch = process.env.CI_COMMIT_BRANCH
+      const config = {
+        branches: ['master'],
+        plugins: [["@semantic-release/commit-analyzer", {"preset": "conventionalcommits"}], '@semantic-release/release-notes-generator', "@semantic-release/gitlab"]
+      }
+      if (config.branches.some(it => it === branch || (it.name === branch && !it.prerelease))) {
+        config.plugins.push('@semantic-release/changelog', [
+          '@semantic-release/git',
+          {
+            assets: ['CHANGELOG.md'],
+            message: 'chore(release): \${nextRelease.version}'
+          }
+        ])
+      }
+      module.exports = config
+      END
+  script:
+    - semantic-release
+  rules:
+    - if: $CI_COMMIT_TITLE =~ /^chore/
+      when: never
+    - if: '$CI_COMMIT_REF_NAME == "master"'
+
+.release_new_infr:
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/semantic-release:17.4.4
+  stage: release
+  tags:
+    - newDev-SDB2C-runner
+  before_script:
+    - |-
+      tee -a release.config.js > /dev/null <<END
+      const branch = process.env.CI_COMMIT_BRANCH
+      const config = {
+        branches: ['master'],
+        plugins: [["@semantic-release/commit-analyzer", {"preset": "conventionalcommits"}], '@semantic-release/release-notes-generator', "@semantic-release/gitlab"]
+      }
+      if (config.branches.some(it => it === branch || (it.name === branch && !it.prerelease))) {
+        config.plugins.push('@semantic-release/changelog', [
+          '@semantic-release/git',
+          {
+            assets: ['CHANGELOG.md'],
+            message: 'chore(release): \${nextRelease.version}'
+          }
+        ])
+      }
+      module.exports = config
+      END
+  script:
+    - semantic-release
+  rules:
+    - if: $CI_COMMIT_TITLE =~ /^chore/
+      when: never
+    - if: '$CI_COMMIT_REF_NAME == "master"'

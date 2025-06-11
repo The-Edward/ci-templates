@@ -1,0 +1,71 @@
+deploy-review:
+  stage: review
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/ci-tools:2.0.0
+  variables:
+    KUBECONFIG: "/root/.kube/config"
+    IMAGE_TAG: "$VERSION"
+    HELM_CHART_REPO: "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.sdisk.ru/products/sberdisk/sberdisk-b2c/deploy/sd-helm.git" 
+    HELM_CHART_PATH: "config/uploader2"
+  environment:
+    name: review/${CI_COMMIT_REF_NAME}
+    url: https://${CI_ENVIRONMENT_SLUG}.sdc.sberdisk.dev 
+    on_stop: stop-review
+    auto_stop_in: 2 hours
+  before_script:
+    - mkdir /root/.kube/
+    - mkdir /root/.docker/
+    - echo $K8S_CONFIG_dev | base64 -d > /root/.kube/config
+    - kubectl create ns ${CI_ENVIRONMENT_SLUG} || true
+    - kubectl label ns ${CI_ENVIRONMENT_SLUG} owner=${GITLAB_USER_LOGIN} --overwrite
+    - >
+      if [[ ! -f /root/.docker/config.json ]]; then
+        echo "${DOCKER_REGISTRY_AUTHS}" > /root/.docker/config.json
+      fi
+    # - |
+    #   kubectl create secret -n ${CI_ENVIRONMENT_SLUG} generic gitlab-registry-secret \
+    #   --from-file=.dockerconfigjson=/root/.docker/config.json \
+    #   --type=kubernetes.io/dockerconfigjson
+  script:
+    - echo "Cloning Helm chart from $HELM_CHART_REPO"
+    - helmfile --version
+    - git clone $HELM_CHART_REPO sd-helm
+    - cd sd-helm
+    - git checkout master
+    - cd ${HELM_CHART_PATH}
+    - helm dependency update .
+    - cd ..
+    - |
+      helm upgrade -i ${CI_ENVIRONMENT_SLUG} ${HELM_CHART_PATH} \
+        -n ${CI_ENVIRONMENT_SLUG} \
+        --set image.repository=$CI_REGISTRY_IMAGE \
+        --set image.tag=${IMAGE_TAG} \
+        --set 'ingress.hosts[0].host'=${CI_ENVIRONMENT_SLUG}.sdc.sberdisk.dev \
+        --set 'ingress.hosts[0].paths[0].path'=/ \
+        --set 'ingress.hosts[0].paths[0].pathType'=Prefix \
+        --version=${IMAGE_TAG}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  tags:
+    - sdc-dev-docker-runner
+
+stop-review:
+  needs:
+    - deploy-review
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/ci-tools:2.0.0
+  stage: review
+  variables:
+    KUBECONFIG: "/root/.kube/config"
+  before_script:
+    - mkdir -p /root/.kube/
+    - echo $K8S_CONFIG_dev | base64 -d > $KUBECONFIG
+  script:
+    # - helm uninstall -n ${CI_ENVIRONMENT_SLUG} app
+    - kubectl delete ns ${CI_ENVIRONMENT_SLUG}
+  environment:
+    name: review/${CI_COMMIT_REF_NAME}
+    action: stop
+  when: manual
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  tags:
+    - sdc-dev-docker-runner

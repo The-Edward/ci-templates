@@ -1,0 +1,79 @@
+.linter:
+  stage: test
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/docker-go:20.10-1.18.1-r0
+  tags:
+    - sdc-dev-docker-runner
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  script:
+    - printf "machine gitlab.sdisk.ru login tech-sd-sdc password ${GL_TOKEN}" >> ~/.netrc
+    - export GOPRIVATE=gitlab.sdisk.ru
+    - export GOPROXY=${AF_GO_PROXY}
+    - go mod download
+    - golangci-lint run -v
+  cache:
+    paths:
+      - .go/pkg/mod/
+
+.test:
+  stage: test
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/docker-go:20.10-1.18.1-r0
+  tags:
+    - sdc-dev-docker-runner
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  script:
+    - printf "machine gitlab.sdisk.ru login tech-sd-sdc password ${GL_TOKEN}" >> ~/.netrc
+    - export GOPRIVATE=gitlab.sdisk.ru
+    - export GOPROXY=${AF_GO_PROXY}
+    - go mod download
+    - go test -race -cover ./...
+    - go test -run=XXX -bench=. -benchmem ./...
+  cache:
+    paths:
+      - .go/pkg/mod/
+
+
+#include:
+#  - template: Security/SAST.gitlab-ci.yml
+#gosec-sast:
+#  before_script:
+#    - printf "machine gitlab.sdisk.ru login tech-sd-sdc password ${GL_TOKEN}" >> ~/.netrc
+#    - export GOPRIVATE=gitlab.sdisk.ru
+#    - export GOPROXY=${AF_GO_PROXY}
+
+
+.linter_new_infr:
+  stage: test
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/docker-go:20.10-1.18.1-r0
+  tags:
+    - newDev-SDB2C-runner
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  script:
+    - printf "machine gitlab.sdisk.ru login tech-sd-sdc password ${GL_TOKEN}" >> ~/.netrc
+    - export GOPRIVATE=gitlab.sdisk.ru
+    - export GOPROXY=${AF_GO_PROXY}
+    - go mod download
+    - golangci-lint run -v
+  cache:
+    paths:
+      - .go/pkg/mod/
+
+.test_new_infr:
+  stage: test
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/docker-go:20.10-1.18.1-r0
+  tags:
+    - newDev-SDB2C-runner
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  script:
+    - printf "machine gitlab.sdisk.ru login tech-sd-sdc password ${GL_TOKEN}" >> ~/.netrc
+    - export GOPRIVATE=gitlab.sdisk.ru
+    - export GOPROXY=${AF_GO_PROXY}
+    - go mod download
+    - go test -race -cover ./...
+    - go test -run=XXX -bench=. -benchmem ./...
+  cache:
+    paths:
+      - .go/pkg/mod/

@@ -1,0 +1,14 @@
+stages:
+  - release
+
+variables:
+  GIT_STRATEGY: clone
+include:
+  - project: 'products/sberdisk/sberdisk-b2c/deploy/ci-templates'
+    ref: 2.0.5
+    file: 'semantic-release.yaml'
+    
+Release:
+  extends: .release
+  tags:
+    - sdc-dev-docker-runner

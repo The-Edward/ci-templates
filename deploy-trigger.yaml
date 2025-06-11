@@ -1,0 +1,76 @@
+.deploy_trigger:
+  stage: deploy
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/semantic-release:17.4.4
+  variables:
+    TRIGGER_TOKEN: $CI_JOB_TOKEN
+    TOKEN: $GL_TOKEN
+  tags:
+    - sdc-dev-docker-runner
+  needs:
+    - Build
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$CI_COMMIT_REF_NAME == "master"'
+    - if: '$CI_COMMIT_REF_NAME == "develop"'
+    - when: manual
+  script:
+    - source current_version;
+    - RANNER_TAG=${RUNNER_TAG:="sdc-dev-docker-runner"}
+    - >
+      echo "VERSION = ${VERSION}"
+      echo "TOKEN = ${TRIGGER_TOKEN}"
+      echo "ENV = ${ENV}"
+      echo "RUNNER_TAG = ${RUNNER_TAG}"
+      echo "ref = ${REF}"
+      echo "SERVICE_NAME = ${CI_PROJECT_NAME}"
+      echo "PARENT_USER = ${GITLAB_USER_LOGIN}"
+      echo "PARENT_USER_EMAIL = ${GITLAB_USER_EMAIL}"
+    - >
+       PIPE_ID=$(curl -X POST
+       -F variables[VERSION]=${VERSION}
+       -F token=${TRIGGER_TOKEN}
+       -F variables[ENV]=${ENV}
+       -F variables[RUNNER_TAG]=${RUNNER_TAG}
+       -F ref=${REF}
+       -F variables[SERVICE_NAME]=${CI_PROJECT_NAME}
+       -F variables[PARENT_USER]=${GITLAB_USER_LOGIN}
+       -F variables[PARENT_USER_EMAIL]=${GITLAB_USER_EMAIL}
+       https://gitlab.sdisk.ru/api/v4/projects/438/trigger/pipeline)
+    - | 
+       echo ${PIPE_ID}
+    - |
+       CHECK_START_TIME=$(date +%s)
+       web_url=$(curl -s --header "PRIVATE-TOKEN: ${TOKEN}" \
+         https://gitlab.sdisk.ru/api/v4/projects/438/pipelines/${PIPE_ID} | jq -r '.web_url')
+       while true; do
+         status=$(curl -s --header "PRIVATE-TOKEN: ${TOKEN}" \
+         https://gitlab.sdisk.ru/api/v4/projects/438/pipelines/${PIPE_ID} | jq -r '.status')
+         if [ "$status" == "failed" ]; then
+           echo "Triggered job is failed"
+           echo "Check child pipeline: $web_url"
+           exit 1
+         elif [ "$status" == "success" ]; then
+           echo "Triggered job is succeeded"
+           exit 0
+         elif [ "$status" == "running" ]; then
+           echo "Triggered job is running"
+         elif [ "$status" == "pending" ]; then
+           echo "Triggered job is pending"
+         elif [ "$status" == "canceled" ]; then
+           echo "Triggered job canceled"
+           echo "$web_url"
+           exit 1
+         elif [ "$status" == "skipped" ]; then
+           echo "Triggered job skipped"
+           echo "$web_url"
+           exit 1
+         fi
+         if [ "$(date +%s -d '950 seconds ago')" -gt "$CHECK_START_TIME" ]; then
+           echo "Triggered pipeline wain timeout"
+           echo "$web_url"
+           exit 1
+         else
+           sleep 15
+         fi
+       done

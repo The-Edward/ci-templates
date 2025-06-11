@@ -1,0 +1,116 @@
+.build:
+  stage: build
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/docker-go:20.10-1.18.1-r0
+  variables:
+    DOCKER_ARGS: "."
+    CI_REGISTRY: sdb2c-docker.pkg.sbercloud.tech
+  tags:
+    - sdc-dev-docker-runner
+  script:
+    - export GOPRIVATE=gitlab.sdisk.ru
+    - export GOPROXY=${AF_GO_PROXY}
+    - export CI_USER=tech-sd-sdc
+    - export CI_TOKEN=${GL_TOKEN}
+    - export GIT_HOST=gitlab.sdisk.ru
+    - export BUILD_IMAGE=${AF_CR_PROXY_DOCKER}/golang
+    - export BUILD_IMAGE_VERSION=1.18
+    - export SVC_IMAGE=gcr.io/distroless/cc
+    - export SVC_BUILD_IMAGE_VERSION=latest
+    - echo "machine ${GIT_HOST} login ${CI_USER} password ${CI_TOKEN}" > ~/.netrc
+    - > 
+      if [ ! -f ".noswag" ] && grep -q -o -E "github.com/swaggo/swag v[0-9]{1,}.[0-9]{1,}.[0-9]{1,}" go.mod; then
+        rm -rf api/swagger
+        mkdir -p api/swagger
+        echo "run swag init:"
+        swag init -g $(grep -rl "^package main$" * | grep ${CI_PROJECT_NAME} ) -o ./api/swagger
+        swag fmt -g $(grep -rl "^package main$" * | grep ${CI_PROJECT_NAME} )
+      fi
+    - >
+      if [[ ! -f ~/.docker/config.json ]]; then
+        mkdir -p ~/.docker/
+        echo "${DOCKER_REGISTRY_AUTHS}" > ~/.docker/config.json
+      fi
+    - >
+      if [ -z ${CI_COMMIT_TAG+x} ]; then
+        export VERSION=${CI_COMMIT_SHORT_SHA};
+        echo "export VERSION=${CI_COMMIT_SHORT_SHA}" > current_version;
+      else
+        export VERSION=${CI_COMMIT_TAG}
+        echo "export VERSION=${CI_COMMIT_TAG}" > current_version
+      fi
+    - >
+        docker build --tag=$CI_REGISTRY/$CI_PROJECT_PATH:$VERSION
+        --build-arg CI_USER=$CI_USER
+        --build-arg CI_TOKEN=$CI_TOKEN
+        --build-arg GOPRIVATE=$GOPRIVATE
+        --build-arg GOPROXY=$GOPROXY
+        --build-arg GIT_HOST=$GIT_HOST
+        --build-arg BUILD_IMAGE=$BUILD_IMAGE
+        --build-arg BUILD_IMAGE_VERSION=$BUILD_IMAGE_VERSION
+        --build-arg SVC_IMAGE=$SVC_IMAGE
+        --build-arg SVC_BUILD_IMAGE_VERSION=$SVC_BUILD_IMAGE_VERSION
+        ${DOCKER_ARGS}
+    - docker push $CI_REGISTRY/$CI_PROJECT_PATH:$VERSION
+  artifacts:
+    paths:
+      - current_version
+    expire_in: 14 days
+
+
+.build_new_infr:
+  stage: build
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/docker-go:20.10-1.18.1-r0
+  variables:
+    DOCKER_ARGS: "."
+    CI_REGISTRY: sdb2c-docker.pkg.sbercloud.tech
+  tags:
+    - newDev-SDB2C-runner
+  script:
+    - export GOPRIVATE=gitlab.sdisk.ru
+    - export GOPROXY=${AF_GO_PROXY}
+    - export CI_USER=tech-sd-sdc
+    - export CI_TOKEN=${GL_TOKEN}
+    - export GIT_HOST=gitlab.sdisk.ru
+    - export BUILD_IMAGE=${AF_CR_PROXY_DOCKER}/golang
+    - export BUILD_IMAGE_VERSION=1.18
+    - export SVC_IMAGE=gcr.io/distroless/cc
+    - export SVC_BUILD_IMAGE_VERSION=latest
+    - echo "machine ${GIT_HOST} login ${CI_USER} password ${CI_TOKEN}" > ~/.netrc
+    - > 
+      if [ ! -f ".noswag" ] && grep -q -o -E "github.com/swaggo/swag v[0-9]{1,}.[0-9]{1,}.[0-9]{1,}" go.mod; then
+        rm -rf api/swagger
+        mkdir -p api/swagger
+        echo "run swag init:"
+        swag init -g $(grep -rl "^package main$" * | grep ${CI_PROJECT_NAME} ) -o ./api/swagger
+        swag fmt -g $(grep -rl "^package main$" * | grep ${CI_PROJECT_NAME} )
+      fi
+    - >
+      if [[ ! -f ~/.docker/config.json ]]; then
+        mkdir -p ~/.docker/
+        echo "${DOCKER_REGISTRY_AUTHS}" > ~/.docker/config.json
+      fi
+    - >
+      if [ -z ${CI_COMMIT_TAG+x} ]; then
+        export VERSION=${CI_COMMIT_SHORT_SHA};
+        echo "export VERSION=${CI_COMMIT_SHORT_SHA}" > current_version;
+      else
+        export VERSION=${CI_COMMIT_TAG}
+        echo "export VERSION=${CI_COMMIT_TAG}" > current_version
+      fi
+    - >
+        docker build --tag=$CI_REGISTRY/$CI_PROJECT_PATH:$VERSION
+        --build-arg CI_USER=$CI_USER
+        --build-arg CI_TOKEN=$CI_TOKEN
+        --build-arg GOPRIVATE=$GOPRIVATE
+        --build-arg GOPROXY=$GOPROXY
+        --build-arg GIT_HOST=$GIT_HOST
+        --build-arg BUILD_IMAGE=$BUILD_IMAGE
+        --build-arg BUILD_IMAGE_VERSION=$BUILD_IMAGE_VERSION
+        --build-arg SVC_IMAGE=$SVC_IMAGE
+        --build-arg SVC_BUILD_IMAGE_VERSION=$SVC_BUILD_IMAGE_VERSION
+        ${DOCKER_ARGS}
+    - docker push $CI_REGISTRY/$CI_PROJECT_PATH:$VERSION
+  artifacts:
+    paths:
+      - current_version
+    expire_in: 14 days

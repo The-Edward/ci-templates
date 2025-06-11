@@ -1,0 +1,45 @@
+.deploy:
+  stage: deploy
+  variables:
+    GIT_STRATEGY: clone
+  allow_failure: false
+  tags:
+    - ${RUNNER_TAG}
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/ci-tools:2.0.0
+  script:
+    - git config --global user.email "tech-sd-sdc@sbercloud.ru"
+    - git config --global user.name "tech-sd-sdc"
+    - git pull https://gitlab-ci-token:${GL_TOKEN}@gitlab.sdisk.ru/products/sberdisk/sberdisk-b2c/deploy/sd-helm.git/ HEAD:${CI_COMMIT_BRANCH}
+    - NAMESPACE=${NAMESPACE:-$ENV}
+    - python /ciscripts/tag.py --file config/${SERVICE_NAME//_/-}/values-${ENV}.yaml --version ${VERSION}
+    - K8S_CONFIG=K8S_CONFIG_${ENV}
+    - chmod 0400 $(echo "${!K8S_CONFIG}")
+    - export KUBECONFIG=$(echo "${!K8S_CONFIG}")
+
+    - HELM_SECRETS_DRIVER=vault NAMESPACE=${NAMESPACE} helmfile --environment=${ENV} -f helmfile.yaml -l component=${SERVICE_NAME//_/-} apply --skip-needs=false || { echo "--------------------\n--------------------"; kubectl -n ${NAMESPACE} logs -ltype=helmlogs -lversion=${VERSION} -lservice=${SERVICE_NAME} --tail=-1; exit 1; }
+
+    - commitTitle=$(echo "Auto__${ENV}:${SERVICE_NAME}:${VERSION}")
+    - git pull https://gitlab-ci-token:${GL_TOKEN}@gitlab.sdisk.ru/products/sberdisk/sberdisk-b2c/deploy/sd-helm.git/ HEAD:${CI_COMMIT_BRANCH}
+    - git add config/${SERVICE_NAME//_/-} && git commit -a -m "$commitTitle" && { git push -o ci.skip https://gitlab-ci-token:${GL_TOKEN}@gitlab.sdisk.ru/products/sberdisk/sberdisk-b2c/deploy/sd-helm.git/ HEAD:${CI_COMMIT_BRANCH} || { echo "Push failed"; exit 1; } } || echo "Nothing to push"
+
+.deploy_new_infr:
+  stage: deploy
+  variables:
+    GIT_STRATEGY: clone
+  allow_failure: false
+  tags:
+    - ${RUNNER_TAG}
+  image: sberworks.ru/rambler/ci90000902_sdsk/ci-images/ci-tools:2.0.0
+  script:
+    - git config --global user.email "${PARENT_USER_EMAIL}"
+    - git config --global user.name "${PARENT_USER}"
+    - git pull https://gitlab-ci-token:${GL_TOKEN}@gitlab.sdisk.ru/products/sberdisk/sberdisk-b2c/deploy/sd-helm.git/ HEAD:${CI_COMMIT_BRANCH}
+    - NAMESPACE=${SERVICE_NAME}
+    - python /ciscripts/tag.py --file config/${SERVICE_NAME//_/-}/values-${ENV}.yaml --version ${VERSION}
+    - K8S_CONFIG=K8S_CONFIG_new_${ENV}
+    - chmod 0400 $(echo "${!K8S_CONFIG}")
+    - export KUBECONFIG=$(echo "${!K8S_CONFIG}")
+    - HELM_SECRETS_DRIVER=vault NAMESPACE=${NAMESPACE} helmfile --environment=${ENV} -f helmfile.yaml -l component=${SERVICE_NAME//_/-} apply --skip-needs=false || { echo "--------------------\n--------------------"; kubectl -n ${NAMESPACE} logs -ltype=helmlogs -lversion=${VERSION} -lservice=${SERVICE_NAME} --tail=-1; exit 1; }
+    - commitTitle=$(echo "Auto__${ENV}:${SERVICE_NAME}:${VERSION}")
+    - git pull https://gitlab-ci-token:${GL_TOKEN}@gitlab.sdisk.ru/products/sberdisk/sberdisk-b2c/deploy/sd-helm.git/ HEAD:${CI_COMMIT_BRANCH}
+    - git add config/${SERVICE_NAME//_/-} && git commit -a -m "$commitTitle" && { git push -o ci.skip https://gitlab-ci-token:${GL_TOKEN}@gitlab.sdisk.ru/products/sberdisk/sberdisk-b2c/deploy/sd-helm.git/ HEAD:${CI_COMMIT_BRANCH} || { echo "Push failed"; exit 1; } } || echo "Nothing to push"

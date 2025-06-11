@@ -1,0 +1,29 @@
+
+.php-linter:
+  stage: test
+  image: proxies-docker.pkg.sbercloud.tech/pipelinecomponents/php-codesniffer:0.21.1
+  tags:
+    - sdc-dev-docker-runner
+  script:
+    - phpcs -s -p --colors --report-file=phpcs_out.txt --extensions=php --standard=${PHPCS_STANDARD} .
+  artifacts:
+    name: "phpcs linter output"
+    paths:
+      - phpcs_out.txt
+    expire_in: 1 week
+  allow_failure: true
+
+
+.php-linter_new_infr:
+  stage: test
+  image: proxies-docker.pkg.sbercloud.tech/pipelinecomponents/php-codesniffer:0.21.1
+  tags:
+    - newDev-SDB2C-runner
+  script:
+    - phpcs -s -p --colors --report-file=phpcs_out.txt --extensions=php --standard=${PHPCS_STANDARD} .
+  artifacts:
+    name: "phpcs linter output"
+    paths:
+      - phpcs_out.txt
+    expire_in: 1 week
+  allow_failure: true
